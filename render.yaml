@@ -20,12 +20,3 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true # Render will generate a secure secret
-    secretFiles:
-      - name: key-json
-        mountPath: /app/key.json # Mount the secret file in your app
-        content: |
-          # Paste your KEY_JSON content here in the Render dashboard
-          # It's recommended to add this via the Render dashboard
-          # instead of hardcoding it in the render.yml file.
-          # For initial setup, you can paste the content from your .env here.
-          ${KEY_JSON}
