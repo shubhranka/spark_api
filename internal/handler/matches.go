@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shubhranka/spark_api/internal/data" // <-- IMPORTANT: Change path
+	"github.com/shubhranka/spark_api/internal/data"
 )
 
 func GetMatches(c *gin.Context) {

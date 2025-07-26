@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 
 	"firebase.google.com/go/v4/auth"
@@ -81,8 +82,47 @@ func SyncUser(c *gin.Context) {
 	})
 }
 
-// GetMe is a simple handler to test authentication
+// GetMe fetches the full profile for the authenticated user.
 func GetMe(c *gin.Context) {
-	uid := c.MustGet(authorizationPayloadKey).(string)
-	c.JSON(http.StatusOK, gin.H{"message": "you are authenticated!", "your_firebase_uid": uid})
+	// Get dependencies from context
+	firebaseUID := c.MustGet(authorizationPayloadKey).(string)
+	userModel := c.MustGet("userModel").(data.UserModel)
+	profileModel := c.MustGet("profileModel").(data.ProfileModel)
+
+	// Define the structure for our JSON response
+	type FullUserProfile struct {
+		ID                string        `json:"id"`
+		FirebaseUID       string        `json:"firebase_uid"`
+		Email             string        `json:"email"`
+		DisplayName       string        `json:"display_name"`
+		OnboardingProfile *data.Profile `json:"onboarding_profile"` // Use a pointer so it can be null
+	}
+
+	// 1. Fetch the basic user info
+	user, err := userModel.GetByFirebaseUID(firebaseUID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found in local db"})
+		return
+	}
+
+	// 2. Fetch the detailed profile info
+	profile, err := profileModel.GetProfileByUserID(user.ID)
+	if err != nil && err != sql.ErrNoRows {
+		log.Println("Error fetching profile:", err)
+		// This is a real server error
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user profile"})
+		return
+	}
+	// If err is sql.ErrNoRows, profile will be nil, which is exactly what we want.
+
+	// 3. Assemble the response
+	response := FullUserProfile{
+		ID:                user.ID,
+		FirebaseUID:       user.FirebaseUID,
+		Email:             user.Email,
+		DisplayName:       user.DisplayName,
+		OnboardingProfile: profile, // This will be null if no profile was found
+	}
+
+	c.JSON(http.StatusOK, response)
 }

@@ -12,7 +12,7 @@ type Profile struct {
 	SexualOrientation []string `json:"sexual_orientation"`
 	GeneralInterests  []string `json:"general_interests"`
 	OpeningQuestion   string   `json:"opening_question"`
-	Dealbreakers      string   `json:"dealbreakers"`
+	Dealbreakers      string   `json:"dealbreakers,omitempty"`
 }
 
 type ProfileModel struct {
@@ -82,4 +82,57 @@ func (m ProfileModel) CreateOrUpdateProfile(userID string, profileData *Profile)
 	log.Println("Successfully processed profile and interests for user:", userID)
 	// If all steps were successful, commit the transaction
 	return tx.Commit()
+}
+
+// GetProfileByUserID fetches a user's profile information using their internal UUID.
+func (m ProfileModel) GetProfileByUserID(userID string) (*Profile, error) {
+	// This query will join profiles with an aggregation of user_interests
+	query := `
+		SELECT
+			p.gender,
+			p.pronouns,
+			p.sexual_orientation,
+			p.opening_question,
+			p.dealbreakers,
+			COALESCE(
+				(
+					SELECT json_agg(i.name)
+					FROM user_interests ui
+					JOIN interests i ON ui.interest_id = i.id
+					WHERE ui.user_id = p.user_id
+				), '[]'::json
+			) as general_interests
+		FROM profiles p
+		WHERE p.user_id = $1;`
+
+	var profile Profile
+	var orientationJSON, interestsJSON []byte // Use byte slices to scan JSON data
+
+	err := m.DB.QueryRow(query, userID).Scan(
+		&profile.Gender,
+		&profile.Pronouns,
+		&orientationJSON,
+		&profile.OpeningQuestion,
+		&profile.Dealbreakers,
+		&interestsJSON,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// This is not a server error. It just means the user hasn't completed onboarding.
+			return nil, sql.ErrNoRows
+		}
+		// This is a real database error
+		return nil, err
+	}
+
+	// Unmarshal the JSON byte slices back into string slices
+	if err := json.Unmarshal(orientationJSON, &profile.SexualOrientation); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(interestsJSON, &profile.GeneralInterests); err != nil {
+		return nil, err
+	}
+
+	return &profile, nil
 }

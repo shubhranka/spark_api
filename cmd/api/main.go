@@ -45,7 +45,8 @@ func main() {
 	// Initialize dependencies
 	userModel := data.UserModel{DB: db}
 	profileModel := data.ProfileModel{DB: db}
-	matchModel := data.MatchModel{DB: db} // <-- ADD THIS LINE
+	matchModel := data.MatchModel{DB: db}
+	conversationModel := data.ConversationModel{DB: db}
 
 	// Setup Gin router
 	router := gin.Default()
@@ -54,7 +55,8 @@ func main() {
 	router.Use(func(c *gin.Context) {
 		c.Set("userModel", userModel)
 		c.Set("profileModel", profileModel)
-		c.Set("matchModel", matchModel) // <-- ADD THIS LINE
+		c.Set("matchModel", matchModel)
+		c.Set("conversationModel", conversationModel)
 		c.Set("authClient", authClient)
 		c.Set("db", db)
 		c.Next()
@@ -66,6 +68,17 @@ func main() {
 		v1.GET("/ping", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"message": "pong"})
 		})
+
+		wsRoutes := v1.Group("/ws")
+		wsRoutes.Use(func(c *gin.Context) { // A simpler middleware for WS
+			c.Set("authClient", authClient)
+			c.Set("userModel", userModel)
+			c.Set("conversationModel", conversationModel)
+			c.Next()
+		})
+		{
+			wsRoutes.GET("/chat/:id", handler.HandleWebSocketConnection)
+		}
 
 		// This group handles the initial user sync
 		authSyncRoutes := v1.Group("/auth")
@@ -82,7 +95,17 @@ func main() {
 			apiRoutes.POST("/onboarding", handler.CompleteOnboarding)
 
 			// The new matches route
-			apiRoutes.GET("/matches", handler.GetMatches) // <-- ADD THIS LINE
+			apiRoutes.GET("/matches", handler.GetMatches)
+			apiRoutes.GET("/users/:id", handler.GetUserProfile)
+
+			convRoutes := apiRoutes.Group("/conversations")
+			{
+				convRoutes.POST("/start", handler.StartConversation)
+				convRoutes.GET("", handler.GetConversations)
+				convRoutes.POST("/:id/messages", handler.SendMessage)
+				convRoutes.GET("/:id", handler.GetConversationDetails)
+				// We will add the other conversation endpoints here in the next steps
+			}
 		}
 	}
 
@@ -96,9 +119,6 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
-
-// ... connectDB and initializeFirebase functions remain the same
-// ... [Pasting them here for completeness]
 
 // connectDB helper function
 func connectDB() (*sql.DB, error) {

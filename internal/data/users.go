@@ -51,3 +51,22 @@ func (m UserModel) GetByFirebaseUID(firebaseUID string) (*User, error) {
 	}
 	return &user, nil
 }
+
+// GetByID retrieves a user by their internal UUID.
+func (m UserModel) GetByID(id string) (*User, error) {
+	query := `
+        SELECT id, firebase_uid, email, display_name, created_at, updated_at
+        FROM users
+        WHERE id = $1`
+
+	var user User
+	err := m.DB.QueryRow(query, id).Scan(&user.ID, &user.FirebaseUID, &user.Email, &user.DisplayName, &user.CreatedAt, &user.UpdatedAt)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, err
+	}
+	return &user, nil
+}

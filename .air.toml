@@ -3,7 +3,7 @@ root = "."
 [build]
 cmd = "go build -o /tmp/main ./cmd/api"
 bin = "/tmp/main"
-full_bin = "/tmp/main"
+full_bin = "dlv exec /tmp/main --listen=127.0.0.1:2345 --headless=true --api-version=2 --accept-multiclient --continue --log -- "
 include_ext = ["go", "toml"]
 exclude_dir = ["vendor"]
 
